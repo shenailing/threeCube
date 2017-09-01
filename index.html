@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, target-densitydpi=device-dpi, user-scalable=no"/>
+    <title>陀螺仪和拖动结合使用</title>
+    <script src="zepto.min.js"></script>
+    <script src="bone.min.js"></script>
+    <script src="orienter.js"></script>
+    <script src="gesture.js"></script>
+    <script src="three.min.js"></script>
+    <script src="CSS3DRenderer.js"></script>
+    <style>
+        * { margin:0; padding:0; }
+        html, body, #main{ width:100%; height:100%; overflow: hidden; }
+        p { position:absolute; left:0; top:0;  }
+    </style>
+</head>
+<body>
+
+    <div id="main"></div>
+
+<script>
+
+
+//拖动+陀螺仪部分
+var main = Bone.extend({}, Bone.Event, {
+    init: function(){
+        document.body.ontouchmove = function(e){
+            e.preventDefault();
+            return false;
+        };
+        var _self = this;
+        this.main = $("#main");
+        gesture.init(this.main);
+
+        this.initThree3D();
+
+        this.initControl();
+    },
+    drag: {lon: 0, lat: 0},
+    aim: {lat: 0, lon: 0},
+    fix: {lon: 0, lat: 0},
+    camera:null,
+    renderer:null,
+    scene:null,
+    lock: true,
+    cube:null,
+    initThree3D: function(){
+        var _self = this;
+
+        //camera
+        _self.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+
+        _self.scene = new THREE.Scene();
+
+        var sides = [{
+            url: 'img/posx.jpg',
+            position: [-512, 0, 0],
+            rotation: [0, Math.PI / 2, 0]
+        }, {
+            url: 'img/negx.jpg',
+            position: [512, 0, 0],
+            rotation: [0, -Math.PI / 2, 0]
+        }, {
+            url: 'img/posy.jpg',
+            position: [0, 512, 0],
+            rotation: [Math.PI / 2, 0, Math.PI]
+        }, {
+            url: 'img/negy.jpg',
+            position: [0, -512, 0],
+            rotation: [-Math.PI / 2, 0, Math.PI]
+        }, {
+            url: 'img/posz.jpg',
+            position: [0, 0, 512],
+            rotation: [0, Math.PI, 0]
+        }, {
+            url: 'img/negz.jpg',
+            position: [0, 0, -512],
+            rotation: [0, 0, 0]
+        }];
+
+        for (var i = 0; i < sides.length; i++) {
+
+            var side = sides[i];
+
+            var element = document.createElement('img');
+            element.width = 1026; // 2 pixels extra to close the gap.
+            element.src = side.url;
+
+            var object = new THREE.CSS3DObject(element);
+            object.position.fromArray(side.position);
+            object.rotation.fromArray(side.rotation);
+            _self.scene.add(object);
+
+        }
+
+
+        _self.renderer = new THREE.CSS3DRenderer();
+        _self.renderer.setSize(window.innerWidth, window.innerHeight);
+
+        document.getElementById("main").appendChild(_self.renderer.domElement);
+        _self.renderer.render(_self.scene, _self.camera);
+    },
+    initControl: function(){
+        var _self = this;
+        console.log(this)
+        gesture.on('move', function (obj) {
+            if (!_self.lock) {
+                _self.drag.lon = (_self.drag.lon - obj.ax * 0.4) % 360;
+                _self.drag.lat = Math.max(-60, Math.min(60, _self.drag.lat + obj.ay * 0.4));
+            }
+        });
+
+        var orienter = new Orienter();
+        orienter.onOrient = function (obj) {
+            _self.aim.lat = obj.lat;
+            _self.aim.lon = -obj.lon;
+
+            if (_self.lock) {
+                _self.fix.lat = -_self.aim.lat;
+                _self.fix.lon = -_self.aim.lon;
+            }
+        };
+        orienter.init();
+
+        this.lock = false;
+        this.animate();
+    },
+    animateId:null,
+    animate: function(){
+        var _self = this;
+        this.animateId = window.requestAnimationFrame(this.animate.bind(this));
+
+        var _lon = (this.aim.lon + this.fix.lon + this.drag.lon) % 360;
+        var _lat = (this.aim.lat + this.fix.lat + this.drag.lat) * 0.35;
+
+        if (_self.getRadian(_lon) - _self.scene.rotation.y > _self.getRadian(180)) _self.scene.rotation.y += _self.getRadian(360);
+        if (_self.getRadian(_lon) - _self.scene.rotation.y < _self.getRadian(-180)) _self.scene.rotation.y -= _self.getRadian(360);
+        _self.scene.rotation.y += (_self.getRadian(_lon) - _self.scene.rotation.y) * 0.3;
+        _self.scene.rotation.x += (_self.getRadian(_lat) - _self.scene.rotation.x) * 0.15;
+
+        _self.renderer.render(this.scene, this.camera);
+    },
+    //角度转弧度
+    getRadian:function(num){
+        return Math.PI / 180 * num;
+    }
+});
+main.init();
+</script>
+</body>
+</html>
